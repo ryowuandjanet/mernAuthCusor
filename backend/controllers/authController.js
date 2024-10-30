@@ -254,8 +254,7 @@ const resetPassword = async (req, res) => {
 
 const logout = async (req, res) => {
   try {
-    // 從請求頭獲取 token
-    const token = req.headers.authorization?.split(' ')[1];
+    const { token } = req.body;
 
     if (!token) {
       return res.status(400).json({
@@ -263,16 +262,80 @@ const logout = async (req, res) => {
       });
     }
 
-    // 將 token 加入黑名單
-    await TokenBlacklist.create({ token });
+    try {
+      // 驗證 token
+      jwt.verify(token, process.env.JWT_SECRET);
 
-    res.json({
-      message: '登出成功',
-    });
+      // 檢查 token 是否已經在黑名單中
+      const existingToken = await TokenBlacklist.findOne({ token });
+      if (existingToken) {
+        return res.status(400).json({
+          message: 'Token 已失效',
+        });
+      }
+
+      // 將 token 加入黑名單
+      await TokenBlacklist.create({ token });
+
+      res.json({
+        message: '登出成功',
+      });
+    } catch (error) {
+      return res.status(401).json({
+        message: 'Token 無效',
+        error: error.message,
+      });
+    }
   } catch (error) {
     console.error('Logout error:', error);
     res.status(500).json({
       message: '登出失敗',
+      error: error.message,
+    });
+  }
+};
+
+const resetPasswordToken = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        message: '請提供電子郵件地址',
+      });
+    }
+
+    // 查找用戶
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({
+        message: '找不到此電子郵件地址的用戶',
+      });
+    }
+
+    // 生成新的重設密碼 token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    console.log('Generated new reset token:', resetToken); // 開發環境日誌
+
+    // 更新用戶的重設密碼 token
+    user.resetPasswordToken = resetToken;
+    user.resetPasswordExpires = Date.now() + 3600000; // 1小時後過期
+    await user.save();
+
+    // 發送包含新 token 的郵件
+    await sendResetPasswordEmail(email, resetToken);
+
+    res.json({
+      message: '新的重設密碼郵件已發送',
+      debug: {
+        resetToken,
+        expiresAt: user.resetPasswordExpires,
+      },
+    });
+  } catch (error) {
+    console.error('Reset password token error:', error);
+    res.status(500).json({
+      message: '生成重設密碼 token 失敗',
       error: error.message,
     });
   }
@@ -286,4 +349,5 @@ module.exports = {
   forgotPassword,
   resetPassword,
   logout,
+  resetPasswordToken,
 };
