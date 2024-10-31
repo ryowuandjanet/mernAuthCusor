@@ -341,6 +341,79 @@ const resetPasswordToken = async (req, res) => {
   }
 };
 
+const socialLogin = async (req, res) => {
+  try {
+    const { email, provider, providerId, name } = req.body;
+
+    if (!email || !provider || !providerId) {
+      return res.status(400).json({
+        message: '請提供所有必要的社交登入資訊',
+      });
+    }
+
+    // 檢查提供者是否有效
+    if (!['google', 'github'].includes(provider)) {
+      return res.status(400).json({
+        message: '無效的社交登入提供者',
+      });
+    }
+
+    // 查找或創建用戶
+    let user = await User.findOne({ email });
+
+    if (user) {
+      // 更新社交 ID（如果需要）
+      if (provider === 'google' && !user.googleId) {
+        user.googleId = providerId;
+        await user.save();
+      } else if (provider === 'github' && !user.githubId) {
+        user.githubId = providerId;
+        await user.save();
+      }
+    } else {
+      // 創建新用戶
+      const userData = {
+        email,
+        name: name || email.split('@')[0],
+        isVerified: true,
+      };
+
+      // 根據提供者設置相應的 ID
+      if (provider === 'google') {
+        userData.googleId = providerId;
+      } else if (provider === 'github') {
+        userData.githubId = providerId;
+      }
+
+      // 創建用戶時不需要密碼
+      user = await User.create(userData);
+    }
+
+    // 生成 JWT token
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+      expiresIn: '30d',
+    });
+
+    res.json({
+      message: '社交登入成功',
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        isVerified: user.isVerified,
+        provider: provider,
+      },
+    });
+  } catch (error) {
+    console.error('Social login error:', error);
+    res.status(500).json({
+      message: '社交登入失敗',
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   register,
   verifyEmail,
@@ -350,4 +423,5 @@ module.exports = {
   resetPassword,
   logout,
   resetPasswordToken,
+  socialLogin,
 };

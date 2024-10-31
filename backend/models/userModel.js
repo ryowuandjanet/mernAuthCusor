@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema(
   {
@@ -9,7 +10,9 @@ const userSchema = new mongoose.Schema(
     },
     password: {
       type: String,
-      required: true,
+      required: function () {
+        return !this.googleId && !this.githubId;
+      },
     },
     name: {
       type: String,
@@ -30,6 +33,12 @@ const userSchema = new mongoose.Schema(
     },
     resetPasswordExpires: {
       type: Date,
+    },
+    googleId: {
+      type: String,
+    },
+    githubId: {
+      type: String,
     },
   },
   {

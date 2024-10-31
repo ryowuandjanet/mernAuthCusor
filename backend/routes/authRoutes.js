@@ -9,6 +9,7 @@ const {
   forgotPassword,
   resetPassword,
   resetPasswordToken,
+  socialLogin,
 } = require('../controllers/authController');
 
 router.post('/register', register);
@@ -19,5 +20,6 @@ router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
 router.post('/logout', logout);
 router.post('/reset-password-token', resetPasswordToken);
+router.post('/social-login', socialLogin);
 
 module.exports = router;
